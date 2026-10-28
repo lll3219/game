@@ -1,0 +1,1371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>食物浪费计算器 · 60 种常见食物</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --pink: #FF2E63; --yellow: #FFD60A; --cyan: #00D9FF;
+    --black: #111; --cream: #FFF6E0; --green: #5BC236;
+  }
+  html, body { min-height: 100%; overflow-x: hidden; }
+  body {
+    font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+    color: var(--black); background-color: var(--cream);
+    background-image: radial-gradient(circle, rgba(255, 46, 99, .18) 2.5px, transparent 2.6px);
+    background-size: 22px 22px; padding-bottom: 40px; -webkit-font-smoothing: antialiased;
+  }
+
+  /* ============ 顶栏（新版：两行） ============ */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    padding: 12px 22px 14px;
+    background: var(--yellow);
+    border-bottom: 5px solid var(--black);
+  }
+  .topbar-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .logo { font-weight: 900; font-size: 19px; letter-spacing: 1px; }
+  .counter {
+    font-weight: 900; font-size: 14px; background: #fff;
+    border: 4px solid var(--black); border-radius: 999px;
+    padding: 6px 16px; box-shadow: 4px 4px 0 var(--black);
+    white-space: nowrap;
+  }
+  .counter span { color: var(--pink); font-size: 17px; }
+
+  /* 累计隐藏成本 */
+  .waste-summary {
+    display: flex; flex-wrap: wrap; align-items: center;
+    gap: 8px 12px;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 3px dashed rgba(0, 0, 0, .25);
+    transform-origin: left center;
+  }
+  .waste-summary .label {
+    font-size: 12px; font-weight: 900; letter-spacing: .5px;
+    color: #5a4a00; margin-right: 2px;
+  }
+  .ws-item {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-weight: 900; font-size: 13px;
+    background: #fff; border: 3px solid var(--black);
+    border-radius: 999px; padding: 4px 12px;
+    box-shadow: 3px 3px 0 var(--black);
+    white-space: nowrap;
+  }
+  .ws-item b { font-size: 15px; font-variant-numeric: tabular-nums; }
+  .ws-item.water  b { color: #0090C0; }
+  .ws-item.land   b { color: #3B8C1F; }
+  .ws-item.carbon b { color: var(--pink); }
+
+  @keyframes summaryPulse {
+    0%   { transform: scale(1); }
+    45%  { transform: scale(1.025); }
+    100% { transform: scale(1); }
+  }
+  .waste-summary.pulse { animation: summaryPulse .38s ease; }
+
+  /* ============ 主容器 ============ */
+  main { max-width: 1160px; margin: 0 auto; padding: 34px 20px 20px; }
+
+  .page-title {
+    font-size: clamp(26px, 4.6vw, 44px); font-weight: 900; letter-spacing: 2px;
+    text-align: center; line-height: 1.25;
+    text-shadow: 4px 4px 0 var(--yellow), 8px 8px 0 var(--black);
+  }
+  .page-sub {
+    margin-top: 26px; text-align: center; font-size: 15px; font-weight: 800; color: #444;
+    background: #fff; display: table; margin-left: auto; margin-right: auto;
+    padding: 8px 20px; border: 4px solid var(--black); border-radius: 999px;
+    box-shadow: 5px 5px 0 var(--black);
+  }
+
+  /* 分类筛选 */
+  .filters { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 30px; }
+  .filter-btn {
+    font-family: inherit; font-weight: 900; font-size: 13.5px; cursor: pointer;
+    background: #fff; color: var(--black); border: 4px solid var(--black);
+    border-radius: 999px; padding: 8px 18px; box-shadow: 4px 4px 0 var(--black);
+    transition: all .12s ease;
+  }
+  .filter-btn:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 var(--black); }
+  .filter-btn.active { background: var(--pink); color: #fff; }
+  .filter-btn:active { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--black); }
+
+  .grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 26px; margin-top: 38px;
+  }
+  .card {
+    position: relative; display: block; text-decoration: none; color: var(--black);
+    background: #fff; border: 5px solid var(--black); border-radius: 18px;
+    padding: 22px 12px 12px; box-shadow: 9px 9px 0 var(--black);
+    transition: transform .15s ease, box-shadow .15s ease;
+    overflow: hidden; cursor: pointer;
+    animation: pop .45s backwards; animation-delay: var(--d, 0s);
+  }
+  .card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 14px;
+    background: var(--c, var(--cyan)); border-bottom: 4px solid var(--black);
+  }
+  .card:hover { transform: translate(-4px, -4px); box-shadow: 14px 14px 0 var(--pink); }
+  .card:active { transform: translate(3px, 3px); box-shadow: 3px 3px 0 var(--black); }
+  .card.hidden { display: none; }
+  .card-cat {
+    position: absolute; top: 20px; right: 10px; font-size: 10px; font-weight: 900;
+    background: #fff; border: 3px solid var(--black); border-radius: 999px;
+    padding: 2px 7px; letter-spacing: .5px;
+  }
+  .card-svg { height: 128px; display: flex; align-items: center; justify-content: center; margin-top: 12px; }
+  .card-svg svg { width: 100%; height: 100%; display: block; }
+  .card-name { font-size: 17.5px; font-weight: 900; text-align: center; margin-top: 8px; letter-spacing: .3px; }
+  .card-sub { font-size: 11.5px; text-align: center; color: #666; margin-top: 4px; font-weight: 700; }
+  .card-badge {
+    margin-top: 12px; text-align: center; font-weight: 900; font-size: 12px;
+    background: var(--yellow); border: 3px solid var(--black); border-radius: 999px; padding: 4px 0;
+  }
+  @keyframes pop {
+    from { opacity: 0; transform: scale(.85) translateY(18px); }
+    to   { opacity: 1; transform: scale(1) translateY(0); }
+  }
+
+  /* ============ 详情页 ============ */
+  .detail { animation: fadeIn .35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: translateY(0); } }
+  .back-btn {
+    font-family: inherit; font-weight: 900; font-size: 15px; cursor: pointer;
+    background: #fff; color: var(--black); border: 5px solid var(--black);
+    border-radius: 999px; padding: 10px 24px; box-shadow: 6px 6px 0 var(--black);
+    transition: all .12s ease; margin-bottom: 28px;
+  }
+  .back-btn:hover { background: var(--yellow); transform: translate(-2px, -2px); box-shadow: 8px 8px 0 var(--black); }
+  .back-btn:active { transform: translate(4px, 4px); box-shadow: 2px 2px 0 var(--black); }
+
+  .hero {
+    display: flex; align-items: center; gap: 26px; flex-wrap: wrap;
+    background: #fff; border: 5px solid var(--black); border-radius: 24px;
+    padding: 24px; box-shadow: 10px 10px 0 var(--black);
+  }
+  .hero-svg { width: 170px; height: 170px; flex: 0 0 auto; }
+  .hero-svg svg { width: 100%; height: 100%; display: block; }
+  .hero-info h1 { font-size: clamp(26px, 4vw, 40px); font-weight: 900; letter-spacing: 1px; }
+  .hero-info p { margin-top: 10px; font-weight: 800; color: #555; font-size: 15px; }
+  .tag {
+    display: inline-block; margin-top: 16px; background: var(--cyan);
+    border: 4px solid var(--black); border-radius: 999px;
+    padding: 6px 16px; font-weight: 900; font-size: 13px;
+  }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 22px; margin-top: 28px; }
+  .stat {
+    position: relative; overflow: hidden; border: 5px solid var(--black);
+    border-radius: 20px; padding: 20px; background: #fff;
+    box-shadow: 8px 8px 0 var(--black); animation: pop .5s backwards;
+  }
+  .stat::after {
+    content: ''; position: absolute; right: -34px; bottom: -34px;
+    width: 130px; height: 130px; border-radius: 50%;
+    background-image: radial-gradient(circle, rgba(0, 0, 0, .15) 2.5px, transparent 2.6px);
+    background-size: 14px 14px; pointer-events: none;
+  }
+  .stat.water  { background: #E4FAFF; }
+  .stat.land   { background: #EBFFE4; }
+  .stat.carbon { background: #FFE9F0; }
+  .stat-label { font-weight: 900; font-size: 14px; letter-spacing: 1px; }
+  .stat-value { font-size: 40px; font-weight: 900; line-height: 1.15; margin-top: 10px; position: relative; z-index: 1; }
+  .stat-unit { font-size: 15px; font-weight: 900; margin-left: 4px; }
+  .stat-eq {
+    position: relative; z-index: 1; margin-top: 12px; font-size: 13.5px; font-weight: 800;
+    background: #fff; border: 3px solid var(--black); border-radius: 10px; padding: 7px 11px; display: inline-block;
+  }
+  .data-note {
+    margin-top: 16px; font-size: 12px; font-weight: 700; color: #666;
+    background: #fff; border: 3px dashed var(--black); border-radius: 12px;
+    padding: 10px 14px; line-height: 1.65;
+  }
+  .story {
+    margin-top: 28px; background: var(--yellow); border: 5px solid var(--black);
+    border-radius: 20px; padding: 24px; box-shadow: 8px 8px 0 var(--black);
+  }
+  .story h2 { font-size: 21px; font-weight: 900; margin-bottom: 14px; }
+  .story h3 { font-size: 17px; font-weight: 900; margin: 20px 0 10px; }
+  .story p { font-size: 15.5px; line-height: 1.85; font-weight: 700; }
+  .story ul { margin-left: 22px; }
+  .story li { margin-bottom: 8px; font-weight: 700; font-size: 14.5px; line-height: 1.6; }
+  .throw-btn {
+    display: block; width: 100%; margin-top: 28px; font-family: inherit;
+    font-size: 20px; font-weight: 900; letter-spacing: 1px; padding: 20px; cursor: pointer;
+    background: var(--pink); color: #fff; border: 5px solid var(--black);
+    border-radius: 20px; box-shadow: 10px 10px 0 var(--black); transition: all .12s ease;
+  }
+  .throw-btn:hover { transform: translate(-3px, -3px); box-shadow: 13px 13px 0 var(--black); }
+  .throw-btn:active { transform: translate(5px, 5px); box-shadow: 3px 3px 0 var(--black); }
+
+  /* ============ Toast ============ */
+  .toast {
+    position: fixed; left: 50%; bottom: 26px; transform: translate(-50%, 160%);
+    max-width: min(92vw, 560px); text-align: center; background: var(--black); color: #fff;
+    font-weight: 900; font-size: 14px; line-height: 1.5; padding: 14px 26px; border-radius: 22px;
+    border: 4px solid #fff; z-index: 999; transition: transform .32s cubic-bezier(.2, 1.4, .5, 1);
+    pointer-events: none;
+  }
+  .toast.show { transform: translate(-50%, 0); }
+
+  .foot { text-align: center; font-size: 12.5px; font-weight: 700; color: #777; margin-top: 46px; padding: 0 20px; line-height: 1.7; }
+
+  /* ============ 移动端适配 ============ */
+  @media (max-width: 520px) {
+    .topbar { padding: 10px 14px 12px; }
+    .logo { font-size: 16px; }
+    .counter { font-size: 12px; padding: 4px 12px; }
+    .counter span { font-size: 15px; }
+    .waste-summary { gap: 6px 8px; margin-top: 8px; padding-top: 8px; }
+    .waste-summary .label { display: none; }
+    .ws-item { font-size: 11.5px; padding: 3px 9px; }
+    .ws-item b { font-size: 13px; }
+
+    .grid { grid-template-columns: repeat(2, 1fr); gap: 14px; }
+    .card { padding: 20px 8px 10px; border-width: 4px; box-shadow: 6px 6px 0 var(--black); }
+    .card-svg { height: 96px; }
+    .card-name { font-size: 14.5px; }
+    .card-sub { font-size: 10px; }
+    .card-cat { display: none; }
+    .hero-svg { width: 130px; height: 130px; }
+    .stat-value { font-size: 32px; }
+  }
+
+  /* 触摸设备取消 hover 残留 */
+  @media (hover: hover) {
+    .card:hover { transform: translate(-4px, -4px); box-shadow: 14px 14px 0 var(--pink); }
+  }
+  * { -webkit-tap-highlight-color: transparent; }
+  body { touch-action: manipulation; }
+</style>
+</head>
+<body>
+
+<!-- ========== 顶栏：份数 + 累计隐藏成本 ========== -->
+<header class="topbar">
+  <div class="topbar-row">
+    <div class="logo">🍽️ 食物浪费计算器</div>
+    <div class="counter">已丢弃 <span id="wasteCount">0</span> 份</div>
+  </div>
+  <div class="waste-summary" id="wasteSummary">
+    <span class="label">累计隐藏成本</span>
+    <span class="ws-item water">💧 水 <b id="sumWater">0</b> L</span>
+    <span class="ws-item land">🌱 土地 <b id="sumLand">0</b> ㎡</span>
+    <span class="ws-item carbon">🌫️ 碳 <b id="sumCarbon">0</b> kg CO₂e</span>
+  </div>
+</header>
+
+<main id="main"></main>
+<div class="toast" id="toast"></div>
+
+<footer class="foot">
+  水足迹参考 Mekonnen &amp; Hoekstra 全球平均值；碳足迹参考 Poore &amp; Nemecek (2018) 及 Our World in Data；土地为耕地/牧场占用估算。<br>
+  均为全球平均估算值，实际数值会因产地、季节、加工与运输方式不同而有差异。
+</footer>
+
+<script>
+/* =========================================================
+   1. 分类
+   ========================================================= */
+const CATEGORIES = [
+  { id: 'all',     label: '全部' },
+  { id: 'staple',  label: '主食' },
+  { id: 'protein', label: '肉蛋水产' },
+  { id: 'veg',     label: '蔬菜' },
+  { id: 'fruit',   label: '水果' },
+  { id: 'bean',    label: '豆类坚果' },
+  { id: 'drink',   label: '饮品甜点' }
+];
+const CAT_LABEL = {
+  staple: '主食', protein: '肉蛋水产', veg: '蔬菜',
+  fruit: '水果', bean: '豆类坚果', drink: '饮品甜点'
+};
+
+/* =========================================================
+   2. 60 种食物数据（water: L/份, land: ㎡/份, carbon: kg CO₂e/份）
+   ========================================================= */
+const FOODS = [
+/* ==================== 主食 12 ==================== */
+{
+  id:'rice', cat:'staple', name:'白米饭', desc:'一碗 200g 熟米饭（约 70g 生米）', color:'#00D9FF',
+  water:260, land:0.2, carbon:0.3,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M46 110 C 54 56, 146 56, 154 110 Z" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g fill="#EDE2C4" stroke="#111" stroke-width="2.5">
+      <ellipse cx="76" cy="94" rx="10" ry="5" transform="rotate(-28 76 94)"/>
+      <ellipse cx="100" cy="84" rx="10" ry="5" transform="rotate(8 100 84)"/>
+      <ellipse cx="124" cy="95" rx="10" ry="5" transform="rotate(30 124 95)"/>
+    </g>
+    <path d="M38 110 C 42 176, 158 176, 162 110 Z" fill="#FFF" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="110" rx="62" ry="14" fill="#F7F7F7" stroke="#111" stroke-width="7"/>
+    <path d="M60 122 Q 100 168 140 122" fill="none" stroke="#00C2FF" stroke-width="8" stroke-linecap="round"/>
+  </svg>`,
+  story:'水稻要在水田中生长 100 多天。一碗 200 克米饭约需 260 升水——够一个人洗 6 次澡。倒掉半碗饭，等于倒掉了一小片水田。',
+  tips:['按需盛饭，先少后添。','剩饭冷藏，2 天内做成炒饭。','外出就餐点小份，吃不完打包。']
+},
+{
+  id:'bread', cat:'staple', name:'吐司面包', desc:'两片约 60g 的吐司', color:'#FFD60A',
+  water:100, land:0.2, carbon:0.12,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M52 158 C 44 120 46 92 68 84 C 78 80 84 70 100 70 C 116 70 122 80 132 84 C 154 92 156 120 148 158 C 146 170 132 174 100 174 C 68 174 54 170 52 158 Z" fill="#E8A94C" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M62 150 C 56 118 58 98 74 92 C 82 89 86 82 100 82 C 114 82 118 89 126 92 C 142 98 144 118 138 150" fill="#F7D9A0" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="84" cy="120" r="5" fill="#C47C2B"/><circle cx="112" cy="108" r="5" fill="#C47C2B"/>
+  </svg>`,
+  story:'两片吐司约对应 100 升水和 0.2 平方米耕地。面包最大的浪费是“放硬了”——变硬不是坏了，烤成面包丁或做法式吐司一样好吃。',
+  tips:['面包冷冻比冷藏更耐放。','变硬的面包做面包糠或布丁。','按一周食用量购买。']
+},
+{
+  id:'pizza', cat:'staple', name:'披萨', desc:'一份约 150g 的披萨', color:'#FFD60A',
+  water:1000, land:1.5, carbon:1.0,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 32 L 34 152 Q 100 200 166 152 Z" fill="#F5C55A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 56 L 52 148 Q 100 184 148 148 Z" fill="#D7442C" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <path d="M100 68 L 62 146 Q 100 174 138 146 Z" fill="#FFD54A" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+    <circle cx="100" cy="110" r="13" fill="#C0392B" stroke="#111" stroke-width="4"/>
+    <circle cx="78" cy="142" r="11" fill="#C0392B" stroke="#111" stroke-width="4"/>
+    <circle cx="122" cy="142" r="11" fill="#C0392B" stroke="#111" stroke-width="4"/>
+  </svg>`,
+  story:'披萨是复合食物：小麦、奶酪、番茄酱和肉类各自都有足迹，一份 150 克综合约 1000 升水。第二天用平底锅小火加热，饼底照样酥脆。',
+  tips:['吃不完用锡纸包好冷藏，2 天内加热。','按人数点单，先少点再加。','边角料切碎做沙拉面包丁。']
+},
+{
+  id:'ramen', cat:'staple', name:'豚骨拉面', desc:'一碗 500g 的拉面', color:'#5BC236',
+  water:1300, land:1.8, carbon:2.0,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 100 C 36 178, 164 178, 168 100 Z" fill="#E63946" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="100" rx="68" ry="16" fill="#F1FAEE" stroke="#111" stroke-width="7"/>
+    <ellipse cx="100" cy="100" rx="56" ry="11" fill="#E8B04B" stroke="#111" stroke-width="4"/>
+    <g stroke="#F4E285" stroke-width="6" fill="none" stroke-linecap="round">
+      <path d="M74 100 q 10 -8 20 0 q 10 8 20 0"/>
+      <path d="M64 95 q 10 -8 20 0 q 10 8 20 0"/>
+    </g>
+    <ellipse cx="128" cy="96" rx="16" ry="12" fill="#FFFDF3" stroke="#111" stroke-width="4"/>
+    <circle cx="128" cy="96" r="6" fill="#FFB703" stroke="#111" stroke-width="3"/>
+    <rect x="60" y="86" width="30" height="16" rx="8" fill="#B5651D" stroke="#111" stroke-width="4"/>
+    <path d="M150 40 L 175 95" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'拉面里有面、汤、肉、蛋，每一样都在消耗资源。一碗 500 克综合约 1300 升水，其中猪肉馅是主要来源。没喝完的整碗倒掉，投入全部归零。',
+  tips:['点小碗或少加一份面。','剩汤打包，回家煮面又是一餐。','吃不完提前分给同桌。']
+},
+{
+  id:'dumplings', cat:'staple', name:'猪肉水饺', desc:'一份 10 个约 250g', color:'#FF2E63',
+  water:650, land:1.1, carbon:1.2,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="100" cy="152" rx="74" ry="24" fill="#D9B382" stroke="#111" stroke-width="7"/>
+    <path d="M34 152 C 30 112 60 94 100 94 C 140 94 170 112 166 152" fill="#E7C79B" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
+    <g fill="#FFFDF3" stroke="#111" stroke-width="5" stroke-linejoin="round">
+      <path d="M62 134 C 62 110 84 102 100 112 C 112 120 104 138 84 140 Z"/>
+      <path d="M108 130 C 110 106 134 100 148 110 C 158 118 148 136 130 138 Z"/>
+    </g>
+    <g fill="#5BC236" stroke="#111" stroke-width="2"><circle cx="84" cy="118" r="4"/><circle cx="132" cy="116" r="4"/></g>
+  </svg>`,
+  story:'水饺是“把多种资源包进一张皮里”：面粉来自小麦田，肉馅来自养殖场。十个约 250 克对应 650 升水，大部分来自猪肉馅。包多了生饺子冷冻定型，随吃随煮。',
+  tips:['一次多包，生饺子冷冻保存。','外卖按食量点，别一次三份。','剩饺子煎成锅贴。']
+},
+{
+  id:'potato', cat:'staple', name:'土豆', desc:'一个约 150g 的土豆', color:'#FFD60A',
+  water:45, land:0.03, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M60 56 C 100 40 152 60 158 104 C 164 148 128 172 94 168 C 60 164 34 138 36 108 C 38 82 40 66 60 56 Z" fill="#D9A45B" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g fill="#B07C3A">
+      <ellipse cx="76" cy="94" rx="6" ry="4" transform="rotate(-25 76 94)"/>
+      <ellipse cx="112" cy="82" rx="6" ry="4" transform="rotate(15 112 82)"/>
+      <ellipse cx="126" cy="124" rx="6" ry="4" transform="rotate(35 126 124)"/>
+    </g>
+  </svg>`,
+  story:'土豆资源效率很高：一个 150 克土豆只需约 45 升水和 0.03 平方米土地，远低于谷物和肉类。避光阴凉储存能多放好几周。',
+  tips:['避光存放，别和洋葱放一起。','发芽变绿不要吃，可切块种。','煮多的压成泥冷冻。']
+},
+{
+  id:'steamed_bun', cat:'staple', name:'馒头', desc:'一个约 100g 的馒头', color:'#FFD60A',
+  water:120, land:0.15, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 130 C 36 80 64 56 100 56 C 136 56 164 80 160 130 C 158 158 138 170 100 170 C 62 170 42 158 40 130 Z" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 56 L 100 96" stroke="#E5D9B0" stroke-width="5" stroke-linecap="round"/>
+    <path d="M78 70 Q 100 58 122 70" fill="none" stroke="#E5D9B0" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'馒头主要是面粉和水，一个 100 克约对应 120 升水和 0.15 平方米麦田。蒸多了放凉变硬，切片煎一下或蒸锅回软即可。',
+  tips:['吃不完冷冻，吃前蒸锅回热。','变硬的馒头切片煎或烤。','按家庭饭量蒸制。']
+},
+{
+  id:'noodles', cat:'staple', name:'素面条', desc:'一碗约 200g 的素面', color:'#FFD60A',
+  water:200, land:0.3, carbon:0.3,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 100 C 36 178, 164 178, 168 100 Z" fill="#7ED957" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="100" rx="68" ry="16" fill="#F1FAEE" stroke="#111" stroke-width="7"/>
+    <ellipse cx="100" cy="100" rx="56" ry="11" fill="#FFF1C9" stroke="#111" stroke-width="4"/>
+    <g stroke="#E8B04B" stroke-width="6" fill="none" stroke-linecap="round">
+      <path d="M74 100 q 10 -8 20 0 q 10 8 20 0"/>
+      <path d="M64 95 q 10 -8 20 0 q 10 8 20 0"/>
+      <path d="M84 105 q 10 -8 20 0 q 10 8 20 0"/>
+    </g>
+    <path d="M150 40 L 175 95" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'一碗素面主要是小麦粉和汤水，200 克约对应 200 升水和 0.3 平方米麦田。面汤喝不完可以打包，第二天煮面又是一餐。',
+  tips:['点小碗或半份面。','剩汤打包再利用。','按食量煮面，别整包下锅。']
+},
+{
+  id:'oats', cat:'staple', name:'燕麦粥', desc:'一碗 200g（约 40g 燕麦）', color:'#5BC236',
+  water:80, land:0.1, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 104 C 36 176 164 176 168 104 Z" fill="#D9B382" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="104" rx="68" ry="16" fill="#F7E8C9" stroke="#111" stroke-width="7"/>
+    <ellipse cx="100" cy="104" rx="54" ry="10" fill="#E8D3A3" stroke="#111" stroke-width="4"/>
+    <g fill="#C9A96A" stroke="#111" stroke-width="2">
+      <ellipse cx="80" cy="102" rx="7" ry="3" transform="rotate(-20 80 102)"/>
+      <ellipse cx="104" cy="98" rx="7" ry="3" transform="rotate(10 104 98)"/>
+      <ellipse cx="124" cy="106" rx="7" ry="3" transform="rotate(30 124 106)"/>
+    </g>
+  </svg>`,
+  story:'燕麦是资源效率很高的谷物，一碗约 200 克的燕麦粥只需约 80 升水。煮多了可以冷藏，第二天加牛奶或水果再吃。',
+  tips:['按食量煮，剩粥冷藏。','加水果坚果提升风味。','购买小包装避免受潮。']
+},
+{
+  id:'corn', cat:'staple', name:'玉米', desc:'一根约 200g 的玉米', color:'#FFD60A',
+  water:200, land:0.3, carbon:0.2,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 40 C 60 60 52 120 80 156 C 94 172 106 172 120 156 C 148 120 140 60 100 40 Z" fill="#FFD60A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g fill="#E8B900" stroke="#111" stroke-width="2">
+      <ellipse cx="88" cy="72" rx="8" ry="11"/><ellipse cx="112" cy="72" rx="8" ry="11"/>
+      <ellipse cx="80" cy="96" rx="8" ry="11"/><ellipse cx="100" cy="96" rx="8" ry="11"/><ellipse cx="120" cy="96" rx="8" ry="11"/>
+      <ellipse cx="86" cy="120" rx="8" ry="11"/><ellipse cx="108" cy="120" rx="8" ry="11"/>
+      <ellipse cx="96" cy="142" rx="8" ry="11"/>
+    </g>
+    <path d="M60 60 C 44 80 46 120 66 140" fill="none" stroke="#5BC236" stroke-width="10" stroke-linecap="round"/>
+    <path d="M140 60 C 156 80 154 120 134 140" fill="none" stroke="#5BC236" stroke-width="10" stroke-linecap="round"/>
+  </svg>`,
+  story:'一根 200 克玉米约对应 200 升水和 0.3 平方米耕地。玉米耐放，吃不完可以剥粒冷冻，煮汤炒饭都能用。',
+  tips:['吃不完剥粒冷冻。','玉米须煮水别浪费。','按人数煮，别一次煮太多。']
+},
+{
+  id:'sweet_potato', cat:'staple', name:'红薯', desc:'一个约 200g 的红薯', color:'#FF2E63',
+  water:60, land:0.08, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M50 130 C 44 86 78 56 116 58 C 154 60 166 96 154 130 C 142 164 104 176 76 164 C 60 158 52 148 50 130 Z" fill="#A63A4E" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M116 58 C 126 40 144 36 154 44" fill="none" stroke="#5BC236" stroke-width="7" stroke-linecap="round"/>
+    <path d="M70 92 Q 100 110 130 92" fill="none" stroke="#D96A7E" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'红薯资源效率高：一个 200 克红薯只需约 60 升水和 0.08 平方米土地。常温阴凉储存能放好几周，别放冰箱。',
+  tips:['阴凉干燥存放，别冷藏。','发芽可以种，果肉仍可吃。','烤红薯做多了压泥冷冻。']
+},
+{
+  id:'pasta', cat:'staple', name:'意大利面', desc:'一份约 200g 的意面', color:'#FFD60A',
+  water:250, land:0.35, carbon:0.35,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="100" cy="150" rx="76" ry="26" fill="#FFFDF3" stroke="#111" stroke-width="7"/>
+    <path d="M40 132 C 60 76 140 76 160 132" fill="none" stroke="#E8C547" stroke-width="14" stroke-linecap="round"/>
+    <path d="M48 120 C 70 80 130 80 152 120" fill="none" stroke="#F4D96B" stroke-width="10" stroke-linecap="round"/>
+    <circle cx="100" cy="100" r="16" fill="#D7442C" stroke="#111" stroke-width="5"/>
+    <g fill="#5BC236" stroke="#111" stroke-width="2"><ellipse cx="76" cy="112" rx="6" ry="3" transform="rotate(-20 76 112)"/></g>
+  </svg>`,
+  story:'一份 200 克意面约对应 250 升水、0.35 平方米麦田。煮多了可以拌橄榄油冷藏，第二天做意面沙拉。',
+  tips:['按人数煮，别整包下锅。','剩意面冷藏做沙拉。','酱料分开保存更耐放。']
+},
+
+/* ==================== 肉蛋水产 12 ==================== */
+{
+  id:'burger', cat:'protein', name:'牛肉汉堡', desc:'一个 200g 的经典汉堡', color:'#FF2E63',
+  water:2200, land:3.5, carbon:3.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M42 148 C 42 174, 158 174, 158 148 Z" fill="#E8A34C" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <rect x="36" y="122" width="128" height="28" rx="14" fill="#6B3B22" stroke="#111" stroke-width="7"/>
+    <path d="M40 122 L 62 142 L 84 122 L 106 142 L 128 122 L 150 142 L 162 122 Z" fill="#FFC300" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M40 116 C 40 56 160 56 160 116 Z" fill="#F0A93F" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g fill="#FFF3D6">
+      <ellipse cx="76" cy="88" rx="7" ry="4" transform="rotate(-20 76 88)"/>
+      <ellipse cx="104" cy="80" rx="7" ry="4" transform="rotate(10 104 80)"/>
+      <ellipse cx="130" cy="94" rx="7" ry="4" transform="rotate(25 130 94)"/>
+    </g>
+  </svg>`,
+  story:'牛肉是“资源黑洞”：100 克牛肉约需 1500 升水和 3 平方米牧场或饲料地。一个 200 克汉堡综合约 2200 升水、3.5 平方米土地、3.5 千克 CO₂e。',
+  tips:['肉饼冷冻，下次解冻再煎。','点小份或与朋友分食。','用鸡肉、豆制品替代部分红肉。']
+},
+{
+  id:'friedchicken', cat:'protein', name:'炸鸡', desc:'一份 3 块约 200g', color:'#FF2E63',
+  water:900, land:2.5, carbon:1.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="7" stroke-linejoin="round">
+      <path d="M48 132 C 36 108 52 82 78 80 C 104 78 118 98 112 120 C 106 142 78 152 60 144 Z" fill="#D68C33"/>
+      <path d="M104 152 C 96 128 112 104 138 106 C 162 108 174 130 164 150 C 154 172 122 174 108 164 Z" fill="#E09B3D"/>
+    </g>
+    <g fill="#B8722A" stroke="#111" stroke-width="2.5">
+      <circle cx="72" cy="102" r="5"/><circle cx="92" cy="118" r="5"/><circle cx="126" cy="128" r="5"/><circle cx="148" cy="138" r="5"/>
+    </g>
+  </svg>`,
+  story:'鸡肉约每公斤 4300 升水。一份 200 克炸鸡约对应 900 升水、2.5 平方米土地、1.5 千克 CO₂e。空气炸锅 180℃ 烤 5 分钟可恢复酥脆。',
+  tips:['冷藏保存，第二天复热。','别被“套餐更划算”带偏。','剩炸鸡撕碎做沙拉。']
+},
+{
+  id:'egg', cat:'protein', name:'煎蛋', desc:'两个约 100g 的鸡蛋', color:'#FFD60A',
+  water:330, land:0.6, carbon:0.45,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 120 C 30 80 70 44 110 50 C 150 56 178 96 164 140 C 150 180 100 186 72 166 C 54 154 46 140 40 120 Z" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <circle cx="112" cy="106" r="30" fill="#FFB703" stroke="#111" stroke-width="7"/>
+    <circle cx="102" cy="96" r="9" fill="#FFE29A"/>
+  </svg>`,
+  story:'两个鸡蛋约 330 升水、0.6 平方米土地、0.45 千克 CO₂e，远低于红肉。冷藏可存 4–5 周，先进先出避免过期。',
+  tips:['冷藏，按购买日期先进先出。','多煎的夹三明治或拌炒饭。','蛋壳可堆肥。']
+},
+{
+  id:'salmon', cat:'protein', name:'三文鱼', desc:'一份约 150g 的三文鱼', color:'#00D9FF',
+  water:500, land:0.9, carbon:0.9,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M36 110 C 58 66 138 66 158 110 C 138 154 58 154 36 110 Z" fill="#FA8072" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M58 110 C 78 86 118 86 138 110" fill="none" stroke="#FFE3DE" stroke-width="6" stroke-linecap="round"/>
+    <path d="M64 122 C 84 102 116 102 134 122" fill="none" stroke="#FFE3DE" stroke-width="6" stroke-linecap="round"/>
+    <path d="M158 110 L 178 88 L 172 110 L 178 132 Z" fill="#FA8072" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="66" cy="104" r="5" fill="#111"/>
+  </svg>`,
+  story:'养殖三文鱼需要鱼粉饲料、冷水环境和冷链。一份 150 克约对应 500 升水、0.9 平方米土地、0.9 千克 CO₂e。当天吃不完立刻冷冻。',
+  tips:['当天吃不完立刻冷冻。','解冻后尽快烹饪。','鱼骨鱼皮可熬汤。']
+},
+{
+  id:'pork', cat:'protein', name:'红烧肉', desc:'一份约 150g 的红烧肉', color:'#FF2E63',
+  water:900, land:1.5, carbon:1.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="7" stroke-linejoin="round">
+      <rect x="44" y="92" width="52" height="48" rx="8" fill="#8B4513"/>
+      <rect x="104" y="104" width="52" height="48" rx="8" fill="#A0522D"/>
+      <rect x="66" y="60" width="46" height="38" rx="8" fill="#9A4A2A"/>
+    </g>
+    <path d="M54 100 Q 70 94 86 100" fill="none" stroke="#E8B04B" stroke-width="4" stroke-linecap="round"/>
+    <path d="M114 112 Q 130 106 146 112" fill="none" stroke="#E8B04B" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'猪肉约每公斤 6000 升水。一份 150 克红烧肉约对应 900 升水、1.5 平方米土地、1.1 千克 CO₂e。吃不完冷藏，第二天加热更入味。',
+  tips:['按人数做，剩菜冷藏。','第二天可拌面或做馅。','用豆腐替代部分肉量。']
+},
+{
+  id:'steak', cat:'protein', name:'牛排', desc:'一份约 200g 的牛排', color:'#FF2E63',
+  water:3100, land:8, carbon:12,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 118 C 36 82 68 58 104 62 C 146 66 170 100 158 134 C 146 166 100 178 70 162 C 52 152 42 138 40 118 Z" fill="#8B4513" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g stroke="#4A2410" stroke-width="5" stroke-linecap="round">
+      <path d="M66 96 L 132 84"/><path d="M68 118 L 138 108"/><path d="M78 140 L 142 132"/>
+    </g>
+    <path d="M120 70 C 136 62 150 68 154 80" fill="none" stroke="#FFF3D6" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'牛肉是碳足迹最高的常见食物之一。200 克牛排约对应 3100 升水、8 平方米土地、12 千克 CO₂e——相当于开车 60 公里。吃不完的牛排冷藏后切片做沙拉。',
+  tips:['按需购买，剩肉冷藏做沙拉。','用鸡肉或豆制品替代部分牛排。','选草饲或本地牛肉可降低部分足迹。']
+},
+{
+  id:'chicken_breast', cat:'protein', name:'鸡胸肉', desc:'一块约 150g 的鸡胸肉', color:'#FFD60A',
+  water:650, land:1.1, carbon:0.9,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M50 100 C 46 64 86 44 120 56 C 156 70 164 108 148 138 C 132 168 90 174 68 154 C 54 142 52 122 50 100 Z" fill="#FADADD" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M76 84 C 100 72 128 80 138 98" fill="none" stroke="#F4B8BE" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'鸡胸肉是高效的白肉蛋白：一块 150 克约对应 650 升水、1.1 平方米土地、0.9 千克 CO₂e。冷藏 1–2 天内吃完，吃不完切块冷冻。',
+  tips:['1–2 天内吃完，或切块冷冻。','水煮后拌沙拉减少浪费。','按餐购买，别囤太多。']
+},
+{
+  id:'lamb_skewer', cat:'protein', name:'羊肉串', desc:'一份 5 串约 100g', color:'#FF2E63',
+  water:870, land:2, carbon:2.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="6" stroke-linecap="round">
+      <path d="M46 140 L 154 60"/><path d="M42 112 L 158 96"/>
+    </g>
+    <g stroke="#111" stroke-width="4" fill="#A0522D">
+      <rect x="70" y="110" width="22" height="18" rx="4" transform="rotate(-30 81 119)"/>
+      <rect x="100" y="96" width="22" height="18" rx="4" transform="rotate(-30 111 105)"/>
+      <rect x="128" y="82" width="22" height="18" rx="4" transform="rotate(-30 139 91)"/>
+    </g>
+    <g stroke="#111" stroke-width="4" fill="#8B4513">
+      <rect x="78" y="86" width="20" height="16" rx="4" transform="rotate(-8 88 94)"/>
+      <rect x="108" y="82" width="20" height="16" rx="4" transform="rotate(-8 118 90)"/>
+    </g>
+  </svg>`,
+  story:'羊肉约每公斤 8700 升水。一份 100 克羊肉串约对应 870 升水、2 平方米土地、2.5 千克 CO₂e。吃不完的肉串可以拆下肉块炒菜。',
+  tips:['按人数点，剩肉拆下炒菜。','搭配蔬菜减少肉量。','选择本地羊肉可减少运输碳排。']
+},
+{
+  id:'shrimp', cat:'protein', name:'虾', desc:'一份约 100g 的虾', color:'#FFD60A',
+  water:400, land:0.5, carbon:1.2,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M56 120 C 52 84 84 56 124 64 C 156 70 168 100 154 124 C 140 148 104 152 84 140" fill="#FF8C69" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M154 124 L 174 140 L 166 116 Z" fill="#FF8C69" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <g stroke="#111" stroke-width="4" stroke-linecap="round">
+      <path d="M84 68 L 104 52"/><path d="M96 64 L 116 50"/>
+    </g>
+    <circle cx="78" cy="92" r="5" fill="#111"/>
+    <path d="M70 110 Q 100 126 130 116" fill="none" stroke="#E85D3A" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'虾的水足迹约每公斤 4000 升。一份 100 克虾约对应 400 升水、0.5 平方米土地、1.2 千克 CO₂e。虾极易变质，买回尽快烹饪。',
+  tips:['买回尽快烹饪或冷冻。','虾壳可熬汤或堆肥。','按餐购买，别囤。']
+},
+{
+  id:'cod', cat:'protein', name:'鳕鱼', desc:'一份约 150g 的鳕鱼', color:'#00D9FF',
+  water:450, land:0.6, carbon:0.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 110 C 62 74 134 74 152 110 C 134 146 62 146 40 110 Z" fill="#F4FAFF" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M152 110 L 172 92 L 166 110 L 172 128 Z" fill="#F4FAFF" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <circle cx="68" cy="102" r="5" fill="#111"/>
+    <path d="M84 110 Q 110 122 136 110" fill="none" stroke="#C9E8F5" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'鳕鱼是低脂白肉鱼，水足迹约每公斤 3000 升。150 克约对应 450 升水、0.6 平方米土地、0.5 千克 CO₂e。冷冻保存可放数月。',
+  tips:['冷冻保存，解冻后尽快烹饪。','鱼骨熬汤。','按餐购买，避免反复冻融。']
+},
+{
+  id:'tuna', cat:'protein', name:'金枪鱼罐头', desc:'一罐约 100g 的金枪鱼', color:'#FF2E63',
+  water:450, land:0.7, carbon:1.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <ellipse cx="100" cy="104" rx="60" ry="48" fill="#C0C0C0" stroke="#111" stroke-width="7"/>
+    <ellipse cx="100" cy="104" rx="48" ry="36" fill="#E8E8E8" stroke="#111" stroke-width="4"/>
+    <path d="M76 104 C 88 88 112 88 124 104 C 112 120 88 120 76 104 Z" fill="#FA8072" stroke="#111" stroke-width="4"/>
+    <circle cx="100" cy="104" r="4" fill="#111"/>
+    <path d="M120 86 L 140 70" stroke="#111" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'金枪鱼罐头方便但碳足迹偏高：100 克约对应 450 升水、0.7 平方米土地、1.5 千克 CO₂e。开封后吃不完要换容器冷藏。',
+  tips:['开封后换容器冷藏。','剩金枪鱼做三明治或拌面。','按需开罐，别一次开多罐。']
+},
+{
+  id:'duck', cat:'protein', name:'鸭肉', desc:'一份约 150g 的鸭肉', color:'#FF2E63',
+  water:600, land:1.3, carbon:0.9,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M52 120 C 44 90 68 66 96 72 C 120 76 130 96 122 118 C 114 142 84 154 66 146 C 58 142 54 132 52 120 Z" fill="#B5651D" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M96 72 C 104 54 124 48 138 56 C 148 62 144 78 132 84" fill="#B5651D" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
+    <circle cx="112" cy="66" r="4" fill="#111"/>
+    <path d="M76 112 Q 96 124 116 114" fill="none" stroke="#D98C4A" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'鸭肉约每公斤 4000 升水。一份 150 克鸭肉约对应 600 升水、1.3 平方米土地、0.9 千克 CO₂e。吃不完冷藏，第二天做鸭肉面。',
+  tips:['剩鸭肉冷藏，做面或炒饭。','按人数购买，别整只囤。','鸭架熬汤不浪费。']
+},
+
+/* ==================== 蔬菜 12 ==================== */
+{
+  id:'salad', cat:'veg', name:'蔬菜沙拉', desc:'一份约 200g 的沙拉', color:'#00D9FF',
+  water:80, land:0.1, carbon:0.3,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M32 108 C 36 180, 164 180, 168 108 Z" fill="#9BD4E4" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g stroke="#111" stroke-width="5" stroke-linejoin="round">
+      <path d="M52 108 C 44 58 92 42 100 82 C 108 42 156 58 148 108 Z" fill="#5BC236"/>
+      <path d="M66 108 C 62 70 96 60 100 92 C 104 60 138 70 134 108 Z" fill="#7ED957"/>
+    </g>
+    <circle cx="68" cy="98" r="14" fill="#E63946" stroke="#111" stroke-width="5"/>
+    <circle cx="132" cy="98" r="14" fill="#E63946" stroke="#111" stroke-width="5"/>
+    <circle cx="100" cy="74" r="13" fill="#E63946" stroke="#111" stroke-width="5"/>
+    <ellipse cx="100" cy="108" rx="68" ry="15" fill="none" stroke="#111" stroke-width="7"/>
+  </svg>`,
+  story:'蔬菜是资源消耗最低的类别之一。一份 200 克沙拉约 80 升水，但生鲜浪费常发生在“忘了吃”的那一刻。洗净沥干、垫厨房纸冷藏能多放几天。',
+  tips:['洗净沥干，垫厨房纸冷藏。','快蔫的做蔬菜汤。','按实际食用量购买。']
+},
+{
+  id:'tomato', cat:'veg', name:'番茄', desc:'一个约 120g 的番茄', color:'#FF2E63',
+  water:30, land:0.03, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="114" r="56" fill="#E63946" stroke="#111" stroke-width="7"/>
+    <path d="M100 58 L 76 44 L 88 62 L 68 66 L 92 72 L 100 60 L 108 72 L 132 66 L 112 62 L 124 44 Z" fill="#5BC236" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <ellipse cx="76" cy="96" rx="14" ry="10" fill="#FF7B85" transform="rotate(-30 76 96)" opacity=".85"/>
+  </svg>`,
+  story:'一个 120 克番茄只需约 30 升水。番茄适合常温避光存放，熟透后再冷藏。一个烂番茄会传染整袋，及时挑出很关键。',
+  tips:['未熟常温，熟透再冷藏。','快软的煮番茄酱冷冻。','买回先检查挑伤果。']
+},
+{
+  id:'broccoli', cat:'veg', name:'西兰花', desc:'一份约 150g 的西兰花', color:'#5BC236',
+  water:45, land:0.05, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 70 C 72 50 46 66 52 92 C 44 110 60 128 80 124 C 78 144 96 156 108 148 C 120 158 144 148 142 128 C 164 124 168 96 150 86 C 156 62 126 50 100 70 Z" fill="#5BC236" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M84 142 L 84 170 C 84 176 116 176 116 170 L 116 142" fill="#7ED957" stroke="#111" stroke-width="6" stroke-linejoin="round"/>
+    <g fill="#3FA02A"><circle cx="76" cy="92" r="5"/><circle cx="104" cy="82" r="5"/><circle cx="128" cy="96" r="5"/><circle cx="94" cy="114" r="5"/><circle cx="120" cy="118" r="5"/></g>
+  </svg>`,
+  story:'西兰花资源效率高：150 克约 45 升水、0.05 平方米土地。买回来别洗，用保鲜袋装好冷藏能放一周。吃之前再切洗。',
+  tips:['不洗直接冷藏，吃前再洗。','茎部去皮切片也能炒。','按一周食用量购买。']
+},
+{
+  id:'carrot', cat:'veg', name:'胡萝卜', desc:'一根约 100g 的胡萝卜', color:'#FFD60A',
+  water:25, land:0.02, carbon:0.05,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 60 C 120 90 136 138 120 168 C 112 182 92 180 84 166 C 70 140 80 92 100 60 Z" fill="#FF8C00" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g stroke="#111" stroke-width="4" stroke-linecap="round">
+      <path d="M100 60 L 84 30"/><path d="M100 60 L 100 26"/><path d="M100 60 L 116 30"/>
+    </g>
+    <g stroke="#E07800" stroke-width="4" stroke-linecap="round">
+      <path d="M92 100 L 110 96"/><path d="M88 122 L 108 118"/><path d="M90 144 L 106 140"/>
+    </g>
+  </svg>`,
+  story:'一根 100 克胡萝卜只需约 25 升水。胡萝卜耐放，冷藏可存数周。发芽不影响食用，切掉芽眼即可。',
+  tips:['冷藏可放数周。','发芽切掉芽眼仍可吃。','按周购买，别一次囤太多。']
+},
+{
+  id:'cucumber', cat:'veg', name:'黄瓜', desc:'一根约 150g 的黄瓜', color:'#5BC236',
+  water:35, land:0.03, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect x="52" y="86" width="96" height="34" rx="17" fill="#7ED957" stroke="#111" stroke-width="7" transform="rotate(-18 100 103)"/>
+    <g fill="#3FA02A">
+      <circle cx="78" cy="96" r="3"/><circle cx="100" cy="86" r="3"/><circle cx="120" cy="92" r="3"/>
+      <circle cx="88" cy="112" r="3"/><circle cx="112" cy="108" r="3"/>
+    </g>
+    <path d="M142 76 C 152 70 160 74 160 82" fill="none" stroke="#5BC236" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'一根 150 克黄瓜约 35 升水。黄瓜怕冷，冷藏容易冻伤，适合阴凉处存放。切开后要用保鲜膜包好，尽快吃完。',
+  tips:['阴凉处存放，别贴冰箱内壁。','切开后保鲜膜包好尽快吃。','凉拌吃不完的可以腌渍。']
+},
+{
+  id:'spinach', cat:'veg', name:'菠菜', desc:'一份约 100g 的菠菜', color:'#5BC236',
+  water:25, land:0.02, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="5" stroke-linejoin="round" fill="#3FA02A">
+      <path d="M100 168 C 100 132 76 108 58 96 C 44 86 46 68 62 66 C 82 64 98 84 100 104 C 102 84 118 64 138 66 C 154 68 156 86 142 96 C 124 108 100 132 100 168 Z"/>
+    </g>
+    <path d="M100 168 L 100 110" stroke="#111" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'菠菜是资源效率很高的叶菜，100 克约 25 升水。买回后垫厨房纸冷藏，2–3 天内吃完。快蔫的菠菜焯水后炒或做汤。',
+  tips:['垫厨房纸冷藏，2–3 天内吃完。','快蔫的焯水炒或做汤。','按需购买，别一次买太多。']
+},
+{
+  id:'lettuce', cat:'veg', name:'生菜', desc:'一份约 100g 的生菜', color:'#5BC236',
+  water:20, land:0.02, carbon:0.07,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="5" stroke-linejoin="round" fill="#7ED957">
+      <path d="M100 160 C 66 150 48 120 58 92 C 66 68 84 60 100 72 C 116 60 134 68 142 92 C 152 120 134 150 100 160 Z"/>
+    </g>
+    <g stroke="#111" stroke-width="4" stroke-linejoin="round" fill="#A8E063">
+      <path d="M100 150 C 80 140 70 120 78 104 C 84 92 92 90 100 98 C 108 90 116 92 122 104 C 130 120 120 140 100 150 Z"/>
+    </g>
+  </svg>`,
+  story:'生菜约 200 升水/公斤，100 克约 20 升水。买回洗净沥干、垫厨房纸冷藏能多放好几天。蔫了的生菜冰水泡一下能恢复脆度。',
+  tips:['洗净沥干，垫厨房纸冷藏。','蔫了冰水泡 10 分钟恢复。','按实际食用量购买。']
+},
+{
+  id:'onion', cat:'veg', name:'洋葱', desc:'一个约 100g 的洋葱', color:'#FFD60A',
+  water:30, land:0.03, carbon:0.05,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 56 C 66 72 50 112 66 146 C 78 170 122 170 134 146 C 150 112 134 72 100 56 Z" fill="#C678C6" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 56 L 100 30" stroke="#5BC236" stroke-width="7" stroke-linecap="round"/>
+    <g stroke="#A85AA8" stroke-width="4" fill="none" stroke-linecap="round">
+      <path d="M78 100 C 88 116 88 140 80 154"/>
+      <path d="M122 100 C 112 116 112 140 120 154"/>
+    </g>
+  </svg>`,
+  story:'洋葱资源效率很高，一个 100 克洋葱约 30 升水。阴凉通风处存放能放很久，但切开的洋葱要冷藏并尽快用完。',
+  tips:['阴凉通风处存放。','切开的冷藏，尽快用完。','发芽的洋葱仍可食用。']
+},
+{
+  id:'cabbage', cat:'veg', name:'白菜', desc:'一份约 200g 的白菜', color:'#5BC236',
+  water:45, land:0.04, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 50 C 58 66 46 120 64 158 C 80 186 120 186 136 158 C 154 120 142 66 100 50 Z" fill="#A8E063" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 50 C 82 80 78 126 88 170" fill="none" stroke="#FFFDF3" stroke-width="10" stroke-linecap="round"/>
+    <path d="M100 50 C 118 80 122 126 112 170" fill="none" stroke="#FFFDF3" stroke-width="10" stroke-linecap="round"/>
+    <path d="M100 50 L 100 176" stroke="#FFFDF3" stroke-width="8" stroke-linecap="round"/>
+  </svg>`,
+  story:'白菜约 200 升水/公斤，200 克约 45 升水。整棵白菜阴凉处能放数周，切开后用保鲜膜包好冷藏。外层老叶别急着扔，腌泡菜正好。',
+  tips:['整棵阴凉存放，切开冷藏。','外层老叶做泡菜。','按家庭饭量购买。']
+},
+{
+  id:'eggplant', cat:'veg', name:'茄子', desc:'一根约 150g 的茄子', color:'#FF2E63',
+  water:40, land:0.04, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 60 C 132 64 156 100 150 138 C 144 170 116 182 92 172 C 66 162 54 132 62 104 C 68 82 82 66 100 60 Z" fill="#6A0DAD" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 60 L 86 38 L 96 50 L 100 32 L 104 50 L 114 38 L 100 60 Z" fill="#5BC236" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <ellipse cx="80" cy="100" rx="10" ry="16" fill="#9A4DDA" transform="rotate(-20 80 100)" opacity=".8"/>
+  </svg>`,
+  story:'一根 150 克茄子约 40 升水。茄子怕冷，冷藏容易变软，适合阴凉处存放。切开后容易氧化，泡淡盐水能保持颜色。',
+  tips:['阴凉处存放，别贴冰箱内壁。','切开泡淡盐水防氧化。','快软的茄子做红烧或烤。']
+},
+{
+  id:'bell_pepper', cat:'veg', name:'青椒', desc:'一个约 100g 的青椒', color:'#5BC236',
+  water:30, land:0.03, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 68 C 72 58 54 86 58 118 C 62 150 82 166 100 166 C 118 166 138 150 142 118 C 146 86 128 58 100 68 Z" fill="#5BC236" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 68 L 100 44" stroke="#3FA02A" stroke-width="8" stroke-linecap="round"/>
+    <path d="M88 68 L 84 50 M112 68 L 116 50" stroke="#3FA02A" stroke-width="6" stroke-linecap="round"/>
+    <path d="M100 84 L 100 156" stroke="#3FA02A" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'一个 100 克青椒约 30 升水。青椒冷藏可放一周，用保鲜袋装好避免失水。切开后要尽快用完，否则容易变软。',
+  tips:['保鲜袋装好冷藏。','切开后尽快用完。','快软的做炒菜或烤。']
+},
+{
+  id:'mushroom', cat:'veg', name:'蘑菇', desc:'一份约 100g 的蘑菇', color:'#FFD60A',
+  water:30, land:0.03, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 60 C 62 60 40 86 40 110 L 160 110 C 160 86 138 60 100 60 Z" fill="#C8A27A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M78 110 L 78 156 C 78 166 122 166 122 156 L 122 110" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <g fill="#A8845E"><circle cx="78" cy="84" r="4"/><circle cx="106" cy="76" r="4"/><circle cx="128" cy="92" r="4"/></g>
+  </svg>`,
+  story:'蘑菇在控温菇房中栽培，100 克约对应 30 升水和 0.15 千克 CO₂e。买回别洗，用纸袋装好冷藏能放几天。吃之前再快速冲洗。',
+  tips:['纸袋装好冷藏，别用塑料袋。','吃之前再洗，别泡水。','按餐购买，2–3 天内吃完。']
+},
+
+/* ==================== 水果 10 ==================== */
+{
+  id:'apple', cat:'fruit', name:'苹果', desc:'一个约 180g 的苹果', color:'#FF2E63',
+  water:145, land:0.1, carbon:0.07,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 64 C 84 44 50 52 44 88 C 38 124 64 168 84 170 C 92 171 96 166 100 166 C 104 166 108 171 116 170 C 136 168 162 124 156 88 C 150 52 116 44 100 64 Z" fill="#E63946" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 64 L 100 38" stroke="#6B3B22" stroke-width="7" stroke-linecap="round"/>
+    <path d="M100 48 C 112 36 130 38 134 44 C 132 56 112 58 100 52 Z" fill="#5BC236" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <ellipse cx="72" cy="88" rx="12" ry="20" fill="#FF7B85" transform="rotate(-25 72 88)" opacity=".8"/>
+  </svg>`,
+  story:'一个 180 克苹果约 145 升水。碰伤的果子会加速整袋腐烂，挑出伤果先吃是减少浪费最有效的一步。',
+  tips:['挑出碰伤的先吃。','冷藏可放数周，别和香蕉放一起。','吃不完煮果酱或烤片。']
+},
+{
+  id:'banana', cat:'fruit', name:'香蕉', desc:'一根约 120g 的香蕉', color:'#FFD60A',
+  water:105, land:0.1, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M52 54 C 44 110 78 164 132 162 C 152 161 162 148 158 134 C 154 122 138 124 126 132 C 100 148 76 116 86 74 C 88 64 82 54 72 52 C 62 50 54 48 52 54 Z" fill="#FFD60A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M56 62 C 52 104 78 148 124 150" fill="none" stroke="#E8B900" stroke-width="5" stroke-linecap="round"/>
+    <path d="M52 54 L 44 38" stroke="#6B3B22" stroke-width="8" stroke-linecap="round"/>
+  </svg>`,
+  story:'一根 120 克香蕉约 105 升水。表皮发黑只说明熟透，果肉更甜，正是做奶昔的好时候。剥皮冷冻能存很久。',
+  tips:['常温悬挂，别放冰箱。','过熟剥皮冷冻做奶昔。','按两三天食用量购买。']
+},
+{
+  id:'strawberry', cat:'fruit', name:'草莓', desc:'一份约 100g 的草莓', color:'#FF2E63',
+  water:40, land:0.05, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 174 C 70 158 46 128 50 100 C 54 74 78 62 100 62 C 122 62 146 74 150 100 C 154 128 130 158 100 174 Z" fill="#E63946" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 62 L 78 40 L 96 50 L 100 34 L 104 50 L 122 40 L 100 62 Z" fill="#5BC236" stroke="#111" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="#FFE29A" stroke="#111" stroke-width="2">
+      <circle cx="84" cy="98" r="4"/><circle cx="104" cy="90" r="4"/><circle cx="122" cy="102" r="4"/>
+      <circle cx="94" cy="118" r="4"/><circle cx="112" cy="122" r="4"/>
+    </g>
+  </svg>`,
+  story:'一份 100 克草莓约 40 升水。草莓吃之前再洗，洗过的不耐放。垫厨房纸冷藏，挑出坏果避免传染。',
+  tips:['吃之前再洗。','垫厨房纸冷藏。','快软的做果酱或冷冻打冰沙。']
+},
+{
+  id:'orange', cat:'fruit', name:'橙子', desc:'一个约 150g 的橙子', color:'#FFD60A',
+  water:90, land:0.08, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="100" cy="112" r="56" fill="#FF8C00" stroke="#111" stroke-width="7"/>
+    <path d="M100 56 L 100 40" stroke="#6B3B22" stroke-width="6" stroke-linecap="round"/>
+    <path d="M100 46 C 110 38 122 40 126 46 C 122 54 110 54 100 48 Z" fill="#5BC236" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+    <g fill="#E07800"><circle cx="82" cy="100" r="3"/><circle cx="118" cy="104" r="3"/><circle cx="100" cy="132" r="3"/></g>
+  </svg>`,
+  story:'一个 150 克橙子约 90 升水。橙子冷藏可放两周。榨汁后的果渣别扔，可以做果酱或堆肥。',
+  tips:['冷藏可放两周。','果渣做果酱或堆肥。','按周购买，别囤太多。']
+},
+{
+  id:'grape', cat:'fruit', name:'葡萄', desc:'一份约 100g 的葡萄', color:'#FF2E63',
+  water:60, land:0.08, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 46 L 100 64" stroke="#6B3B22" stroke-width="6" stroke-linecap="round"/>
+    <path d="M100 50 C 112 42 124 46 128 54 C 122 62 108 60 100 54 Z" fill="#5BC236" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+    <g fill="#6A0DAD" stroke="#111" stroke-width="4">
+      <circle cx="86" cy="80" r="14"/><circle cx="114" cy="80" r="14"/>
+      <circle cx="100" cy="104" r="14"/><circle cx="74" cy="108" r="14"/><circle cx="126" cy="108" r="14"/>
+      <circle cx="88" cy="132" r="14"/><circle cx="112" cy="132" r="14"/>
+      <circle cx="100" cy="156" r="14"/>
+    </g>
+  </svg>`,
+  story:'一份 100 克葡萄约 60 升水。葡萄容易掉粒和发霉，买回后别洗，吃多少洗多少。冷藏用保鲜袋装好能放一周。',
+  tips:['不洗直接冷藏。','吃多少洗多少。','掉粒的冷冻做冰沙。']
+},
+{
+  id:'watermelon', cat:'fruit', name:'西瓜', desc:'一份约 300g 的西瓜', color:'#5BC236',
+  water:90, land:0.1, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M34 120 A 66 66 0 0 1 166 120 Z" fill="#5BC236" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M46 120 A 54 54 0 0 1 154 120 Z" fill="#FF7B85" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+    <g fill="#111"><ellipse cx="82" cy="106" rx="4" ry="6" transform="rotate(-20 82 106)"/><ellipse cx="112" cy="100" rx="4" ry="6" transform="rotate(15 112 100)"/><ellipse cx="100" cy="116" rx="4" ry="6"/><ellipse cx="132" cy="112" rx="4" ry="6" transform="rotate(25 132 112)"/></g>
+  </svg>`,
+  story:'一份 300 克西瓜约 90 升水。切开的西瓜用保鲜膜包好冷藏，2 天内吃完。瓜皮别急着扔，凉拌或腌渍都好吃。',
+  tips:['切开保鲜膜包好冷藏。','2 天内吃完。','瓜皮凉拌或腌渍。']
+},
+{
+  id:'mango', cat:'fruit', name:'芒果', desc:'一个约 150g 的芒果', color:'#FFD60A',
+  water:100, land:0.1, carbon:0.12,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M56 110 C 52 76 82 52 112 58 C 146 64 164 100 152 134 C 140 166 100 178 76 160 C 62 150 58 130 56 110 Z" fill="#FFC300" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M112 58 C 126 46 142 48 148 58 C 146 70 128 72 114 64" fill="#FF7B3A" stroke="#111" stroke-width="5" stroke-linejoin="round" opacity=".85"/>
+    <path d="M84 96 Q 104 112 128 100" fill="none" stroke="#E8A800" stroke-width="4" stroke-linecap="round"/>
+  </svg>`,
+  story:'一个 150 克芒果约 100 升水。芒果常温放软后冷藏，切开后尽快吃完。果核上的果肉别浪费，啃干净或煮水。',
+  tips:['常温放软后冷藏。','切开尽快吃完。','果核果肉别浪费。']
+},
+{
+  id:'blueberry', cat:'fruit', name:'蓝莓', desc:'一份约 100g 的蓝莓', color:'#00D9FF',
+  water:60, land:0.06, carbon:0.12,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g fill="#3A5FCD" stroke="#111" stroke-width="4">
+      <circle cx="78" cy="86" r="16"/><circle cx="120" cy="82" r="16"/>
+      <circle cx="100" cy="112" r="16"/><circle cx="66" cy="126" r="16"/>
+      <circle cx="134" cy="126" r="16"/><circle cx="100" cy="152" r="16"/>
+    </g>
+    <g fill="#FFF" opacity=".6"><circle cx="72" cy="80" r="3"/><circle cx="114" cy="76" r="3"/><circle cx="94" cy="106" r="3"/></g>
+  </svg>`,
+  story:'一份 100 克蓝莓约 60 升水。蓝莓怕潮，买回不洗直接冷藏，吃之前再快速冲洗。发霉的果子要及时挑出。',
+  tips:['不洗直接冷藏。','吃前再洗，及时挑霉果。','快软的冷冻做冰沙。']
+},
+{
+  id:'pear', cat:'fruit', name:'梨', desc:'一个约 180g 的梨', color:'#5BC236',
+  water:110, land:0.08, carbon:0.07,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 54 C 86 54 80 70 82 84 C 66 96 56 118 60 140 C 64 164 86 176 100 176 C 114 176 136 164 140 140 C 144 118 134 96 118 84 C 120 70 114 54 100 54 Z" fill="#D4E157" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 54 L 100 34" stroke="#6B3B22" stroke-width="6" stroke-linecap="round"/>
+    <path d="M100 42 C 110 34 122 36 126 42 C 122 50 110 50 100 44 Z" fill="#5BC236" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+  </svg>`,
+  story:'一个 180 克梨约 110 升水。梨冷藏可放两周，但别和香蕉、苹果放一起，它们会催熟。碰伤的梨先吃。',
+  tips:['冷藏可放两周。','别和香蕉苹果放一起。','碰伤的先吃。']
+},
+{
+  id:'peach', cat:'fruit', name:'桃子', desc:'一个约 150g 的桃子', color:'#FF2E63',
+  water:100, land:0.08, carbon:0.08,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 70 C 72 56 48 78 50 110 C 52 144 74 170 100 174 C 126 170 148 144 150 110 C 152 78 128 56 100 70 Z" fill="#FF9E7A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 70 C 94 80 94 100 100 110 C 106 100 106 80 100 70 Z" fill="#F27A55"/>
+    <path d="M100 70 L 100 50" stroke="#6B3B22" stroke-width="6" stroke-linecap="round"/>
+    <path d="M100 56 C 112 48 124 50 128 56 C 122 64 110 62 100 58 Z" fill="#5BC236" stroke="#111" stroke-width="4" stroke-linejoin="round"/>
+  </svg>`,
+  story:'一个 150 克桃子约 100 升水。桃子怕压，买回平铺冷藏，2–3 天内吃完。碰伤的桃子优先吃，别等它烂。',
+  tips:['平铺冷藏，别叠压。','2–3 天内吃完。','碰伤的先吃。']
+},
+
+/* ==================== 豆类坚果 4 ==================== */
+{
+  id:'tofu', cat:'bean', name:'豆腐', desc:'一块约 200g 的豆腐', color:'#00D9FF',
+  water:450, land:0.8, carbon:0.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <g stroke="#111" stroke-width="7" stroke-linejoin="round">
+      <rect x="44" y="98" width="112" height="56" rx="6" fill="#FFFDF0"/>
+      <rect x="60" y="70" width="80" height="34" rx="6" fill="#FFF8E0"/>
+    </g>
+    <g fill="#5BC236" stroke="#111" stroke-width="3">
+      <ellipse cx="76" cy="84" rx="8" ry="4" transform="rotate(-20 76 84)"/>
+      <ellipse cx="104" cy="76" rx="8" ry="4" transform="rotate(15 104 76)"/>
+    </g>
+  </svg>`,
+  story:'豆腐是植物蛋白里资源效率很高的选择：200 克约 450 升水、0.8 平方米土地。开封后泡清水冷藏、每天换水，能多放两三天。',
+  tips:['开封泡清水冷藏，每天换水。','吃不完切块冷冻做冻豆腐。','替代部分肉类可降碳足迹。']
+},
+{
+  id:'soy_milk', cat:'bean', name:'豆浆', desc:'一杯 250ml 的豆浆', color:'#FFD60A',
+  water:100, land:0.2, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M64 62 L 136 62 L 142 152 C 144 168 134 174 100 174 C 66 174 56 168 58 152 Z" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="62" rx="36" ry="12" fill="#FFF8E0" stroke="#111" stroke-width="7"/>
+    <path d="M72 96 Q 100 108 128 96" fill="none" stroke="#E8DDB8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M76 120 Q 100 132 124 120" fill="none" stroke="#E8DDB8" stroke-width="5" stroke-linecap="round"/>
+    <path d="M120 44 L 136 24" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'豆浆是资源效率很高的植物蛋白饮品，一杯 250 毫升约 100 升水。自制豆浆喝不完要冷藏，2 天内喝完。',
+  tips:['喝不完冷藏，2 天内喝完。','豆渣做饼或堆肥。','按饮用量制作。']
+},
+{
+  id:'peanut', cat:'bean', name:'花生', desc:'一份约 50g 的花生', color:'#FFD60A',
+  water:450, land:0.4, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 50 C 70 54 56 84 62 110 C 68 136 88 146 100 142 C 112 146 132 136 138 110 C 144 84 130 54 100 50 Z" fill="#C8A27A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 56 L 100 142" stroke="#A8845E" stroke-width="5" stroke-linecap="round"/>
+    <g fill="#A8845E"><circle cx="78" cy="84" r="3"/><circle cx="120" cy="88" r="3"/><circle cx="82" cy="116" r="3"/><circle cx="118" cy="120" r="3"/></g>
+  </svg>`,
+  story:'花生约每公斤 9000 升水，50 克约 450 升水。花生怕潮，密封阴凉存放。受潮发霉的花生不要吃。',
+  tips:['密封阴凉存放。','受潮发霉不要吃。','按需购买，别囤太多。']
+},
+{
+  id:'almond', cat:'bean', name:'杏仁', desc:'一份约 30g 的杏仁', color:'#FFD60A',
+  water:480, land:0.35, carbon:0.1,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M100 46 C 74 60 66 100 82 136 C 92 158 108 158 118 136 C 134 100 126 60 100 46 Z" fill="#C8A27A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M100 56 C 90 80 90 120 100 146" fill="none" stroke="#A8845E" stroke-width="4" stroke-linecap="round"/>
+    <g fill="#A8845E"><circle cx="88" cy="82" r="2.5"/><circle cx="110" cy="96" r="2.5"/><circle cx="92" cy="120" r="2.5"/></g>
+  </svg>`,
+  story:'杏仁水足迹很高，约每公斤 16000 升，30 克约 480 升水。密封阴凉存放，受潮的杏仁口感变差，尽快吃完。',
+  tips:['密封阴凉存放。','受潮尽快吃完。','按小份购买，别囤太多。']
+},
+
+/* ==================== 饮品甜点 10 ==================== */
+{
+  id:'milk', cat:'drink', name:'牛奶', desc:'一杯 250ml 的牛奶', color:'#00D9FF',
+  water:255, land:2.0, carbon:0.75,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M64 62 L 136 62 L 148 150 C 150 168 138 176 100 176 C 62 176 50 168 52 150 Z" fill="#F4FAFF" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="62" rx="36" ry="12" fill="#FFFFFF" stroke="#111" stroke-width="7"/>
+    <ellipse cx="100" cy="62" rx="24" ry="7" fill="#DDF2FF" stroke="#111" stroke-width="4"/>
+    <path d="M70 96 Q 100 112 130 96" fill="none" stroke="#00C2FF" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'一杯 250 毫升牛奶约对应 255 升水、2 平方米土地、0.75 千克 CO₂e。开封后冷藏、3 天内喝完，临期牛奶可做酸奶或煮燕麦粥。',
+  tips:['开封冷藏，3 天内喝完。','临期做酸奶或燕麦粥。','按家庭饮用量选包装。']
+},
+{
+  id:'coffee', cat:'drink', name:'咖啡', desc:'一杯 250ml 的黑咖啡', color:'#FF2E63',
+  water:140, land:0.2, carbon:0.3,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M44 84 L 140 84 L 132 156 C 130 168 122 174 100 174 C 78 174 62 168 60 156 Z" fill="#FFFFFF" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="92" cy="84" rx="48" ry="12" fill="#6B3B22" stroke="#111" stroke-width="7"/>
+    <path d="M140 100 C 170 100 174 140 142 142" fill="none" stroke="#111" stroke-width="7" stroke-linecap="round"/>
+    <g stroke="#B98A5A" stroke-width="5" fill="none" stroke-linecap="round">
+      <path d="M78 60 q 8 -14 0 -26"/><path d="M100 56 q 8 -14 0 -26"/><path d="M122 60 q 8 -14 0 -26"/>
+    </g>
+  </svg>`,
+  story:'一杯黑咖啡约 140 升水。咖啡豆约每公斤 21000 升水，一杯用 10 克左右。喝不完冷藏，加牛奶做成冰咖啡。',
+  tips:['按饮用量点单，中杯通常够。','喝不完冷藏做冰咖啡。','自带杯，很多店有优惠。']
+},
+{
+  id:'cola', cat:'drink', name:'可乐', desc:'一罐 330ml 的可乐', color:'#FF2E63',
+  water:60, land:0.08, carbon:0.18,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M68 40 L 132 40 L 132 64 C 142 74 146 90 146 108 L 146 158 C 146 170 136 176 100 176 C 64 176 54 170 54 158 L 54 108 C 54 90 58 74 68 64 Z" fill="#E63946" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <rect x="54" y="96" width="92" height="46" fill="#FFFFFF" stroke="#111" stroke-width="5"/>
+    <path d="M68 40 L 132 40" stroke="#B0B0B0" stroke-width="8"/>
+    <path d="M80 112 Q 100 124 120 112" fill="none" stroke="#E63946" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'一罐 330 毫升可乐约 60 升水、0.18 千克 CO₂e，主要成本在包装。开罐后尽快喝完，放久会跑气。铝罐记得回收。',
+  tips:['按饮用量选小罐。','开罐尽快喝完。','铝罐回收。']
+},
+{
+  id:'chocolate', cat:'drink', name:'巧克力', desc:'一块约 50g 的巧克力', color:'#FF2E63',
+  water:850, land:0.7, carbon:0.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <rect x="44" y="60" width="112" height="96" rx="8" fill="#5A3825" stroke="#111" stroke-width="7"/>
+    <g stroke="#3E2416" stroke-width="5">
+      <path d="M72 60 L 72 156"/><path d="M100 60 L 100 156"/><path d="M128 60 L 128 156"/>
+      <path d="M44 92 L 156 92"/><path d="M44 124 L 156 124"/>
+    </g>
+    <path d="M44 60 L 156 60 L 156 68 L 44 68 Z" fill="#E8C547" stroke="#111" stroke-width="5"/>
+  </svg>`,
+  story:'50 克巧克力约对应 850 升水——可可种植需水量大，再叠加牛奶、糖和加工运输。阴凉密封保存，吃不完切碎冷冻做烘焙。',
+  tips:['阴凉密封，别放冰箱。','吃不完切碎冷冻做烘焙。','选高可可含量黑巧，少量满足。']
+},
+{
+  id:'orange_juice', cat:'drink', name:'橙汁', desc:'一杯 250ml 的橙汁', color:'#FFD60A',
+  water:420, land:0.3, carbon:0.25,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M64 70 L 136 70 L 142 152 C 144 168 134 174 100 174 C 66 174 56 168 58 152 Z" fill="#FF8C00" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="70" rx="36" ry="12" fill="#FFC300" stroke="#111" stroke-width="7"/>
+    <path d="M70 100 Q 100 114 130 100" fill="none" stroke="#FFD54A" stroke-width="6" stroke-linecap="round"/>
+    <path d="M120 46 L 136 24" stroke="#111" stroke-width="6" stroke-linecap="round"/>
+  </svg>`,
+  story:'一杯 250 毫升橙汁约需 2–3 个橙子，对应约 420 升水和 0.25 千克 CO₂e。鲜榨橙汁最好当天喝完，冷藏可放 1–2 天。',
+  tips:['鲜榨当天喝完。','冷藏可放 1–2 天。','按饮用量榨，别一次榨太多。']
+},
+{
+  id:'beer', cat:'drink', name:'啤酒', desc:'一罐 330ml 的啤酒', color:'#FFD60A',
+  water:100, land:0.1, carbon:0.15,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M64 64 L 136 64 L 140 156 C 142 170 134 176 100 176 C 66 176 58 170 60 156 Z" fill="#F2C94C" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="64" rx="36" ry="12" fill="#FFF8E0" stroke="#111" stroke-width="7"/>
+    <path d="M68 64 C 68 44 132 44 132 64" fill="#FFFDF3" stroke="#111" stroke-width="5"/>
+    <g fill="#E8B900"><circle cx="84" cy="100" r="3"/><circle cx="116" cy="104" r="3"/><circle cx="100" cy="132" r="3"/></g>
+  </svg>`,
+  story:'一罐 330 毫升啤酒约 100 升水、0.15 千克 CO₂e。开罐后尽快喝完，放久会跑气变苦。玻璃瓶和铝罐都记得回收。',
+  tips:['开罐尽快喝完。','玻璃瓶铝罐回收。','按饮用量购买。']
+},
+{
+  id:'ice_cream', cat:'drink', name:'冰淇淋', desc:'一份约 100g 的冰淇淋', color:'#FF2E63',
+  water:250, land:0.3, carbon:0.35,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M70 96 L 130 96 L 100 170 Z" fill="#E8C547" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <circle cx="100" cy="76" r="30" fill="#FFB6C1" stroke="#111" stroke-width="7"/>
+    <circle cx="76" cy="92" r="22" fill="#FFFDF3" stroke="#111" stroke-width="6"/>
+    <circle cx="124" cy="92" r="22" fill="#A8E063" stroke="#111" stroke-width="6"/>
+    <path d="M100 46 L 100 30" stroke="#6B3B22" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'冰淇淋含牛奶和糖，100 克约对应 250 升水和 0.35 千克 CO₂e。融化后再冷冻口感变差，按份购买，别囤太多。',
+  tips:['按份购买，融化后别再冻。','吃不完密封冷冻。','选小份装。']
+},
+{
+  id:'cake', cat:'drink', name:'蛋糕', desc:'一块约 100g 的蛋糕', color:'#FF2E63',
+  water:300, land:0.3, carbon:0.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M50 140 L 100 60 L 150 140 Z" fill="#F7D9A0" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M50 140 L 150 140 L 150 160 C 150 170 140 174 100 174 C 60 174 50 170 50 160 Z" fill="#E8C547" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <circle cx="100" cy="56" r="10" fill="#E63946" stroke="#111" stroke-width="4"/>
+    <path d="M84 110 C 90 100 110 100 116 110" fill="none" stroke="#FF9E7A" stroke-width="5" stroke-linecap="round"/>
+  </svg>`,
+  story:'一块 100 克蛋糕约 300 升水、0.5 千克 CO₂e，主要来自黄油、鸡蛋和奶油。冷藏保存，2 天内吃完。',
+  tips:['冷藏 2 天内吃完。','切块冷冻可延长保存。','按人数买，别整块囤。']
+},
+{
+  id:'yogurt', cat:'drink', name:'酸奶', desc:'一杯 150g 的酸奶', color:'#00D9FF',
+  water:180, land:1.2, carbon:0.35,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M64 72 L 136 72 L 140 152 C 142 168 134 174 100 174 C 66 174 58 168 60 152 Z" fill="#FFFDF3" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="72" rx="36" ry="12" fill="#F4FAFF" stroke="#111" stroke-width="7"/>
+    <path d="M120 44 L 100 66" stroke="#C0C0C0" stroke-width="7" stroke-linecap="round"/>
+    <circle cx="86" cy="106" r="7" fill="#E63946" stroke="#111" stroke-width="3"/>
+    <circle cx="112" cy="116" r="7" fill="#5BC236" stroke="#111" stroke-width="3"/>
+  </svg>`,
+  story:'一杯 150 克酸奶约对应 180 升水、1.2 平方米土地、0.35 千克 CO₂e。开封后冷藏、2 天内吃完，别用勺子反复挖。',
+  tips:['开封冷藏 2 天内吃完。','别用勺子反复挖。','按周购买，别囤太多。']
+},
+{
+  id:'milk_tea', cat:'drink', name:'奶茶', desc:'一杯 500ml 的奶茶', color:'#FF2E63',
+  water:320, land:0.5, carbon:0.5,
+  svg:`<svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+    <path d="M60 64 L 140 64 L 146 152 C 148 168 138 174 100 174 C 62 174 52 168 54 152 Z" fill="#C8A27A" stroke="#111" stroke-width="7" stroke-linejoin="round"/>
+    <ellipse cx="100" cy="64" rx="40" ry="12" fill="#E8D3A3" stroke="#111" stroke-width="7"/>
+    <path d="M146 74 L 160 40" stroke="#111" stroke-width="7" stroke-linecap="round"/>
+    <g fill="#3E2416" stroke="#111" stroke-width="2">
+      <circle cx="84" cy="140" r="7"/><circle cx="104" cy="146" r="7"/><circle cx="122" cy="140" r="7"/><circle cx="94" cy="128" r="7"/><circle cx="112" cy="128" r="7"/>
+    </g>
+  </svg>`,
+  story:'一杯 500 毫升奶茶约 320 升水、0.5 千克 CO₂e，主要来自牛奶、糖和珍珠。按需点单，小杯往往就够了，喝不完冷藏别超过一天。',
+  tips:['小杯往往就够。','喝不完冷藏不超一天。','选低糖少珍珠，减少浪费。']
+}
+];
+
+/* =========================================================
+   3. 状态
+   ========================================================= */
+const STORAGE_KEY = 'fw_wasted_v2';
+const state = { wasted: loadWasted(), filter: 'all' };
+
+function loadWasted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch (e) { return []; }
+}
+function saveWasted() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.wasted)); } catch (e) {}
+}
+
+/* =========================================================
+   4. 工具函数
+   ========================================================= */
+function findFood(id) { return FOODS.filter(function (f) { return f.id === id; })[0]; }
+
+function sumResource(key) {
+  let total = 0;
+  state.wasted.forEach(function (id) {
+    const f = findFood(id);
+    if (f) total += f[key];
+  });
+  return total;
+}
+
+function animateValue(el, target, decimals, duration) {
+  if (!el) return;
+  const dur = duration || 900;
+  const start = performance.now();
+  function frame(now) {
+    let p = (now - start) / dur;
+    if (p > 1) p = 1;
+    const eased = 1 - Math.pow(1 - p, 3);
+    const v = target * eased;
+    el.textContent = decimals > 0 ? v.toFixed(decimals) : String(Math.round(v));
+    if (p < 1) requestAnimationFrame(frame);
+    else el.textContent = decimals > 0 ? target.toFixed(decimals) : String(Math.round(target));
+  }
+  requestAnimationFrame(frame);
+}
+
+function fmtEq(v) {
+  if (v >= 10) return String(Math.round(v));
+  return v.toFixed(1).replace(/\.0$/, '');
+}
+
+/* 千分位格式化，用于顶栏累计值 */
+function fmtNum(n, decimals) {
+  const fixed = Number(n).toFixed(decimals);
+  const parts = fixed.split('.');
+  const intPart = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  return parts[1] ? intPart + '.' + parts[1] : intPart;
+}
+
+let toastTimer = null;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2600);
+}
+
+/* ============ 核心：刷新顶栏份数 + 三项累计 ============ */
+let summaryPulseTimer = null;
+function updateWasteSummary(pulse) {
+  // 份数
+  const countEl = document.getElementById('wasteCount');
+  if (countEl) countEl.textContent = state.wasted.length;
+
+  // 三项累计
+  const wEl = document.getElementById('sumWater');
+  const lEl = document.getElementById('sumLand');
+  const cEl = document.getElementById('sumCarbon');
+
+  if (wEl) wEl.textContent = fmtNum(sumResource('water'), 0);
+  if (lEl) lEl.textContent = fmtNum(sumResource('land'), 1);
+  if (cEl) cEl.textContent = fmtNum(sumResource('carbon'), 2);
+
+  // 脉冲反馈
+  if (pulse) {
+    const box = document.getElementById('wasteSummary');
+    if (box) {
+      box.classList.remove('pulse');
+      void box.offsetWidth; // 强制重绘，让动画可重复触发
+      box.classList.add('pulse');
+      clearTimeout(summaryPulseTimer);
+      summaryPulseTimer = setTimeout(function () {
+        box.classList.remove('pulse');
+      }, 420);
+    }
+  }
+}
+
+/* =========================================================
+   5. 渲染
+   ========================================================= */
+function renderHome() {
+  const main = document.getElementById('main');
+  if (!main) { console.error('[食物浪费计算器] 找不到 #main'); return; }
+
+  const filtersHtml = CATEGORIES.map(function (c) {
+    return '<button type="button" class="filter-btn' + (state.filter === c.id ? ' active' : '') +
+           '" data-filter="' + c.id + '">' + c.label + '</button>';
+  }).join('');
+
+  const cards = FOODS.map(function (f, i) {
+    return '<div class="card" data-food="' + f.id + '" data-cat="' + f.cat + '" ' +
+             'style="--c:' + f.color + '; --d:' + (i * 0.02).toFixed(2) + 's">' +
+             '<span class="card-cat">' + CAT_LABEL[f.cat] + '</span>' +
+             '<div class="card-svg">' + f.svg + '</div>' +
+             '<div class="card-name">' + f.name + '</div>' +
+             '<div class="card-sub">' + f.desc + '</div>' +
+             '<div class="card-badge">查看成本 →</div>' +
+           '</div>';
+  }).join('');
+
+  main.innerHTML =
+    '<section class="home">' +
+      '<h1 class="page-title">今天，你要丢掉什么？</h1>' +
+      '<p class="page-sub">60 种常见食物 · 点击查看它们的隐藏成本</p>' +
+      '<div class="filters">' + filtersHtml + '</div>' +
+      '<div class="grid">' + cards + '</div>' +
+    '</section>';
+
+  applyFilter();
+}
+
+function applyFilter() {
+  const cards = document.querySelectorAll('.card[data-food]');
+  for (let i = 0; i < cards.length; i++) {
+    const cat = cards[i].getAttribute('data-cat');
+    if (state.filter === 'all' || state.filter === cat) cards[i].classList.remove('hidden');
+    else cards[i].classList.add('hidden');
+  }
+  const btns = document.querySelectorAll('.filter-btn');
+  for (let j = 0; j < btns.length; j++) {
+    if (btns[j].getAttribute('data-filter') === state.filter) btns[j].classList.add('active');
+    else btns[j].classList.remove('active');
+  }
+}
+
+function renderDetail(id) {
+  const f = findFood(id);
+  const main = document.getElementById('main');
+  if (!main) { console.error('[食物浪费计算器] 找不到 #main'); return; }
+  if (!f) { goHome(); return; }
+
+  const waterEq  = f.water / 40;
+  const landEq   = f.land / 0.0624;
+  const carbonEq = f.carbon / 0.2;
+  const tipsHtml = f.tips.map(function (t) { return '<li>' + t + '</li>'; }).join('');
+
+  main.innerHTML =
+    '<section class="detail">' +
+      '<button class="back-btn" id="backBtn" type="button">← 返回食物列表</button>' +
+      '<div class="hero">' +
+        '<div class="hero-svg">' + f.svg + '</div>' +
+        '<div class="hero-info">' +
+          '<h1>' + f.name + '</h1>' +
+          '<p>' + f.desc + '</p>' +
+          '<span class="tag">' + CAT_LABEL[f.cat] + ' · 一份食物的隐藏成本</span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="stats">' +
+        '<div class="stat water" style="animation-delay:.05s">' +
+          '<div class="stat-label">💧 水资源消耗</div>' +
+          '<div class="stat-value"><span id="v-water">0</span><span class="stat-unit">升</span></div>' +
+          '<div class="stat-eq">≈ 淋浴 ' + fmtEq(waterEq) + ' 次（每次 40 升）</div>' +
+        '</div>' +
+        '<div class="stat land" style="animation-delay:.12s">' +
+          '<div class="stat-label">🌱 土地资源消耗</div>' +
+          '<div class="stat-value"><span id="v-land">0</span><span class="stat-unit">㎡</span></div>' +
+          '<div class="stat-eq">≈ ' + fmtEq(landEq) + ' 张 A4 纸面积（每张 0.0624㎡）</div>' +
+        '</div>' +
+        '<div class="stat carbon" style="animation-delay:.19s">' +
+          '<div class="stat-label">🌫️ 碳排放</div>' +
+          '<div class="stat-value"><span id="v-carbon">0</span><span class="stat-unit">kg CO₂e</span></div>' +
+          '<div class="stat-eq">≈ 开车 ' + fmtEq(carbonEq) + ' 公里（每公里 0.2 kg）</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="data-note">📐 数据说明：水足迹参考 Mekonnen &amp; Hoekstra 全球平均研究，碳足迹参考 Poore &amp; Nemecek (2018)，土地为耕地/牧场占用估算。数值会因产地、季节、加工与运输方式不同而有差异，此处用于科普对比。</div>' +
+      '<div class="story">' +
+        '<h2>🗑️ 如果这份食物被丢掉……</h2>' +
+        '<p>' + f.story + '</p>' +
+        '<h3>怎么做更好？</h3>' +
+        '<ul>' + tipsHtml + '</ul>' +
+      '</div>' +
+      '<button class="throw-btn" id="throwBtn" type="button">把它丢进垃圾桶 🗑️</button>' +
+    '</section>';
+
+  animateValue(document.getElementById('v-water'), f.water, 0, 850);
+  animateValue(document.getElementById('v-land'), f.land, 1, 850);
+  animateValue(document.getElementById('v-carbon'), f.carbon, 2, 850);
+
+  document.getElementById('backBtn').addEventListener('click', goHome);
+  document.getElementById('throwBtn').addEventListener('click', function () {
+    state.wasted.push(f.id);
+    saveWasted();
+    updateWasteSummary(true); // 刷新份数 + 三项累计，并触发脉冲
+    showToast('+1 份「' + f.name + '」被浪费 · 累计已更新到顶部');
+  });
+
+  window.scrollTo(0, 0);
+}
+
+/* =========================================================
+   6. 路由
+   ========================================================= */
+function goHome() {
+  history.pushState({ page: 'home' }, '', '#');
+  render();
+}
+function goDetail(id) {
+  history.pushState({ page: 'detail', id: id }, '', '#/food/' + id);
+  render();
+}
+function render() {
+  const raw = location.hash.replace(/^#/, '');
+  const prefix = '/food/';
+  try {
+    if (raw.indexOf(prefix) === 0) renderDetail(raw.slice(prefix.length));
+    else renderHome();
+  } catch (err) {
+    console.error('[食物浪费计算器] 渲染出错：', err);
+    try { renderHome(); } catch (e) {}
+  }
+  // 每次渲染后同步顶栏（首次进入 / 前进后退 / 刷新都正确）
+  updateWasteSummary(false);
+}
+
+/* =========================================================
+   7. 事件委托
+   ========================================================= */
+document.addEventListener('click', function (e) {
+  const target = e.target;
+  const filterBtn = target.closest ? target.closest('.filter-btn') : null;
+  if (filterBtn) {
+    e.preventDefault();
+    const val = filterBtn.getAttribute('data-filter');
+    if (val) { state.filter = val; applyFilter(); }
+    return;
+  }
+  const card = target.closest ? target.closest('.card[data-food]') : null;
+  if (card) {
+    const id = card.getAttribute('data-food');
+    if (id) { e.preventDefault(); goDetail(id); }
+  }
+});
+
+window.addEventListener('popstate', render);
+
+if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', render);
+else render();
+</script>
+</body>
+</html>
